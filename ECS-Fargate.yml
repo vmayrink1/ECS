@@ -1,0 +1,141 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: container cluster on ECS, loadbalancer, security groups and cloudwatch
+Parameters:
+  VPCID:
+    Type: String
+  SubnetPrivate1:
+    Type: String
+  SubnetPrivate2:
+    Type: String
+  SubnetPrivate3:
+    Type: String
+  SubnetPublic1:
+    Type: String
+  SubnetPublic2:
+    Type: String
+  SubnetPublic3:
+    Type: String
+  EnvironmentName:
+    Type: String
+
+Resources:
+  
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Join ['', ['ecs-xxxx-', !Ref EnvironmentName]]
+      Tags:
+        - Key: "env"
+          Value: !Ref EnvironmentName
+        - Key: "ecs_cluster"
+          Value: !Join ['', ['ecs-xxxx-', !Ref EnvironmentName]]
+
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Join ['', ['ecs-alb-xxxx-', !Ref EnvironmentName]]
+      Subnets:
+        - !Ref SubnetPublic1
+        - !Ref SubnetPublic2
+        - !Ref SubnetPublic3
+      Type: application
+      SecurityGroups:
+        - !Ref LoadBalancerSecurityGroup
+      Tags:
+        - Key: "env"
+          Value: !Ref EnvironmentName
+
+  LoadBalancerNLB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Join ['', ['ecs-nlb-xxxx-', !Ref EnvironmentName]]
+      Subnets:
+        - !Ref SubnetPrivate1
+        - !Ref SubnetPrivate2
+        - !Ref SubnetPrivate3
+      Type: network
+      Scheme: internal
+      Tags:
+        - Key: "env"
+          Value: !Ref EnvironmentName
+
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for application loadbalancer to services on ECS
+      VpcId: !Ref VPCID
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: -1
+      Tags:
+        - Key: "env"
+          Value: !Ref EnvironmentName
+
+  ServiceDiscoveryNamespace:
+    Type: AWS::ServiceDiscovery::PrivateDnsNamespace
+    Properties:
+      Name: !Join ['', ['ecs', !Ref EnvironmentName]]
+      Vpc: !Ref VPCID
+      Tags:
+        - Key: "env"
+          Value: !Ref EnvironmentName
+
+  ClusterCloudWatchLogsGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join ['', ['ecs-xxxx-logs', !Ref EnvironmentName]]
+      RetentionInDays: 1
+
+Outputs:
+  
+  Cluster:
+    Value: !Ref ECSCluster
+    Export:
+      Name: !Join ['', [ 'ECSCluster-', !Ref EnvironmentName]]
+
+  LoadBalancerSecurityGroup:
+    Description: load balancer security group
+    Value: !Ref LoadBalancerSecurityGroup
+    Export:
+      Name: !Join ['', [ 'LoadBalancerSecurityGroup-', !Ref EnvironmentName]]
+
+
+  LoadBalancerDNS:
+    Description: Domain name for the application loadbalancer
+    Value: !GetAtt LoadBalancer.DNSName
+    Export:
+      Name: !Join ['', [ 'AppDomainName-', !Ref EnvironmentName]]
+
+
+  LoadBalancerARN:
+    Description: Domain name for the application loadbalancer
+    Value: !Ref LoadBalancer
+    Export:
+      Name: !Join ['', [ 'LoadBalancerARN-', !Ref EnvironmentName]]
+
+
+  NLoadBalancerDNS:
+    Description: Domain name for the network loadbalancer
+    Value: !GetAtt LoadBalancerNLB.DNSName
+    Export:
+      Name: !Join ['', [ 'NetworkDomainName-', !Ref EnvironmentName]]
+
+  NLoadBalancerARN:
+    Description: Domain name for the network loadbalancer
+    Value: !Ref LoadBalancerNLB
+    Export:
+      Name: !Join ['', [ 'NetworkDomainNameARN-', !Ref EnvironmentName]]
+
+
+  ServiceDiscoveryNamespace:
+    Description: Domain name for the internal communication
+    Value: !Ref ServiceDiscoveryNamespace
+    Export:
+      Name: !Join ['', [ 'ServiceDiscoveryNamespace-', !Ref EnvironmentName]]
+
+
+  ClusterCloudWatchLogsGroup:
+    Description: Cloud watch group for ECS cluster
+    Value: !Ref ClusterCloudWatchLogsGroup
+    Export:
+      Name: !Join ['', [ 'ClusterCloudWatchLogsGroup-', !Ref EnvironmentName]]
